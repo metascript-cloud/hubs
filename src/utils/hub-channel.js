@@ -11,7 +11,6 @@ import { createNetworkedEntity } from "./create-networked-entity";
 import { addComponent, defineQuery, entityExists, removeEntity } from "bitecs";
 import { Holdable, InteractionSfxSystem } from "../bit-components";
 import { crClearInterval } from "./coroutine";
-import { SOUND_CHAT_MESSAGE, SOUND_QUACK, SOUND_SPECIAL_QUACK } from "../systems/sound-effects-system";
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 const MS_PER_MONTH = 1000 * 60 * 60 * 24 * 30;
@@ -254,12 +253,8 @@ export default class HubChannel extends EventTarget {
     
       // Listen to 'message' event from the server
       room.onMessage('playSound', (data) => {
-
-        console.log("play sound")
-
         const soundSystem = AFRAME.scenes[0].systems["hubs-systems"].soundEffectsSystem;
-        soundSystem.playSoundOneShot(0);
-        
+        soundSystem.playSoundOneShot(SOUND_CHAT_MESSAGE);
       });
 
 
