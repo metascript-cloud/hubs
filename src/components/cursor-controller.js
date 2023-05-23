@@ -133,6 +133,9 @@ AFRAME.registerComponent("cursor-controller", {
     const cameraPos = new THREE.Vector3();
     const v = new THREE.Vector3();
 
+    let lastHoverObject = -1;
+    let lastClickTime = [];
+
     return function (t, left) {
       const userinput = AFRAME.scenes[0].systems.userinput;
       const cursorPose = userinput.get(left ? paths.actions.cursor.left.pose : paths.actions.cursor.right.pose);
@@ -159,6 +162,7 @@ AFRAME.registerComponent("cursor-controller", {
 
       const isGrabbing = left ? anyEntityWith(APP.world, HeldRemoteLeft) : anyEntityWith(APP.world, HeldRemoteRight);
       let isHoveringSomething = false;
+
       if (!isGrabbing) {
         rawIntersections.length = 0;
         this.raycaster.ray.origin = cursorPose.position;
@@ -172,6 +176,24 @@ AFRAME.registerComponent("cursor-controller", {
 
         const remoteHoverTarget = this.intersection && findRemoteHoverTarget(APP.world, this.intersection.object);
         isHoveringSomething = !!remoteHoverTarget;
+
+        const currentRoom = APP.hubChannel.currentRoom;
+
+        if(currentRoom) {
+          if(!isHoveringSomething) {
+            if(lastHoverObject > 0) {
+              currentRoom.send("onEntityHoverExit", { id: lastHoverObject })
+              lastHoverObject = -1;
+            }
+          } else {
+            if(remoteHoverTarget != lastHoverObject) {
+              lastHoverObject = remoteHoverTarget;
+              lastClickTime[lastHoverObject] = Date.now(); // this timestamp
+              currentRoom.send("onEntityHoverEntered", { id: lastHoverObject })
+            }
+          }
+        }
+ 
         if (remoteHoverTarget) {
           addComponent(APP.world, left ? HoveredRemoteLeft : HoveredRemoteRight, remoteHoverTarget);
         }
@@ -183,6 +205,29 @@ AFRAME.registerComponent("cursor-controller", {
           }
         }
         this.distance = remoteHoverTarget ? this.intersection.distance : this.data.defaultDistance * playerScale;
+      }
+
+      let rightButtonClicked = userinput.get(paths.device.mouse.buttonRight);
+      let leftButtonClicked = userinput.get(paths.device.mouse.buttonLeft);
+
+      if(lastHoverObject != -1) { 
+        // handle sending entity click events to the server
+        if(leftButtonClicked || rightButtonClicked) {
+          const currentRoom = APP.hubChannel.currentRoom;
+          if(currentRoom) {
+            const timeSinceLastClick = Date.now() - lastClickTime[lastHoverObject];
+            if(timeSinceLastClick <= 100) {
+              // prevent spam clicking events
+              return;
+            }
+            currentRoom.send("onEntityClicked", {
+              id: lastHoverObject,
+              isLeft: leftButtonClicked,
+              isRight: rightButtonClicked
+            });
+          }
+          lastHoverObject = -1;
+        }
       }
 
       const { cursor, minDistance, far, camera } = this.data;

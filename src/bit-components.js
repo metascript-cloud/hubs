@@ -1,3 +1,5 @@
+// important 
+
 import { defineComponent, setDefaultSize, setRemovedRecycleThreshold, Types } from "bitecs";
 
 // TODO this has to happen before all components are defined. Is there a better spot to be doing this?

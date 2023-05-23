@@ -1,11 +1,22 @@
+// important
+
 import jwtDecode from "jwt-decode";
 import { EventTarget } from "event-target-shim";
 import { Presence } from "phoenix";
 import { migrateChannelToSocket, discordBridgesForPresences, migrateToChannel } from "./phoenix-utils";
 import configs from "./configs";
+import * as Colyseus from "colyseus.js";
+import { Vector3 } from "three";
+import { createNetworkedEntity } from "./create-networked-entity";
+import { addComponent, defineQuery, entityExists, removeEntity } from "bitecs";
+import { Holdable, InteractionSfxSystem } from "../bit-components";
+import { crClearInterval } from "./coroutine";
+import { SOUND_CHAT_MESSAGE, SOUND_QUACK, SOUND_SPECIAL_QUACK } from "../systems/sound-effects-system";
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 const MS_PER_MONTH = 1000 * 60 * 60 * 24 * 30;
+
+// meatscript server connection
 
 function isSameMonth(da, db) {
   return da.getFullYear() == db.getFullYear() && da.getMonth() == db.getMonth();
@@ -45,7 +56,9 @@ export default class HubChannel extends EventTarget {
     this._signedIn = !!this.store.state.credentials.token;
     this._permissions = {};
     this._blockedSessionIds = new Set();
-
+    this.client = new Colyseus.Client('ws://localhost:2567');
+    this.syncTimer = null;
+    this.currentRoom = null;
     store.addEventListener("profilechanged", this.sendProfileUpdate.bind(this));
   }
 
@@ -207,6 +220,108 @@ export default class HubChannel extends EventTarget {
     };
 
     this.channel.push("events:entered", entryEvent);
+
+    if(this.syncTimer) {
+      crClearInterval(this.syncTimer);
+      this.syncTimer = null;
+    }
+
+    // join the metascript server
+    this.client.joinOrCreate("state_handler", { 
+      "token": this.token
+    }).then(room => {
+
+      var players = {};
+      var entities = {};
+
+      // assign current to the room we are in
+      this.currentRoom = room;
+
+      // holds reference to the character position in object3d
+      const currentPosition = new Vector3(0, 0, 0);
+      const lastPosition = new Vector3(0, 0, 0);
+      const avatarPov = document.getElementById("avatar-pov-node");
+      const userinput = AFRAME.scenes[0].systems.userinput;
+
+      // listen to patches coming from the server
+      room.state.players.onAdd(function (player, sessionId) {
+        players[sessionId] = player;
+      });
+
+      room.state.players.onRemove(function (player, sessionId) {
+        delete players[sessionId];
+      });
+    
+      // Listen to 'message' event from the server
+      room.onMessage('playSound', (data) => {
+
+        console.log("play sound")
+
+        const soundSystem = AFRAME.scenes[0].systems["hubs-systems"].soundEffectsSystem;
+        soundSystem.playSoundOneShot(SOUND_CHAT_MESSAGE);
+        
+      });
+
+
+      // keep the character's position synchronized with msxr
+      this.syncTimer = setInterval(() => {
+        avatarPov.object3D.getWorldPosition(currentPosition);
+        if(lastPosition.equals(currentPosition)) {
+          return;
+        }
+        room.send("updatePosition", { x: currentPosition.x, y: currentPosition.y, z: currentPosition.z });
+        lastPosition.copy(currentPosition)
+      }, 500);
+
+      // entity creation message
+      room.onMessage("createEntity", (entityCreateMessage) => {
+        if(entities[entityCreateMessage.id]) {
+          throw new Error("Entity with id already exists!");
+        }
+        // create entity mapping hubs eid to the id assigned in the payload
+        console.log("[MSXR]: Creating entity:" + JSON.stringify(entityCreateMessage));
+        const eid = createNetworkedEntity(APP.world, "entity", entityCreateMessage);
+        entities[entityCreateMessage.id] = eid;
+        // modify to be grabable
+        if(entityCreateMessage.grabable) {
+          addComponent(APP.world, Holdable, eid);
+        }  
+
+        addComponent(APP.world, InteractionSfxSystem, eid);
+
+        // [CursorRaycastablem]
+      });
+
+      // entity modification message
+      room.onMessage("modifyEntity", (entityModifyMessage) => {
+        if(!entities[entityDeleteMessage.id]) {
+          throw new Error("Entity with id not found!");
+        }
+        console.log("[MSXR]: Modifying entity:" + JSON.stringify(entityModifyMessage));
+        // remove entiy based on id assigned at the time of creation
+        if(entities[entityModifyMessage.id]) {
+          const obj = APP.world.eid2obj.get(entities[entityModifyMessage.id]);
+          // modify or sync state?
+        }
+      });
+
+      // entity deletion message
+      room.onMessage("deleteEntity", (entityDeleteMessage) => {
+        if(!entities[entityDeleteMessage.id]) {
+          throw new Error("Entity with id not found!");
+        }
+        console.log("[MSXR]: Deleting entity:" + JSON.stringify(entityDeleteMessage));
+        // remove entiy based on id assigned at the time of creation
+        if(entities[entityDeleteMessage.id]) {
+          removeEntity(APP.world, entities[entityDeleteMessage.id]);
+          delete entities[entityDeleteMessage.id];
+        }
+      });
+
+    }).catch(e => {
+        console.log("JOIN ERROR", e);
+    });
+
   };
 
   beginStreaming() {
