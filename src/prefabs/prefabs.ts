@@ -18,9 +18,10 @@ export type PrefabDefinition = {
   template: CameraPrefabT | CubeMediaPrefabT | MediaPrefabT | EntityPrefabT;
 };
 
-export type PrefabName = "camera" | "cube" | "media";
+export type PrefabName = "camera" | "cube" | "media" | "entity";
 
 export const prefabs = new Map<PrefabName, PrefabDefinition>();
 prefabs.set("camera", { permission: "spawn_camera", template: CameraPrefab });
 prefabs.set("cube", { template: CubeMediaFramePrefab });
 prefabs.set("media", { template: MediaPrefab });
+prefabs.set("entity", { template: EntityPrefab });

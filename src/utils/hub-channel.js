@@ -254,9 +254,8 @@ export default class HubChannel extends EventTarget {
       // Listen to 'message' event from the server
       room.onMessage('playSound', (data) => {
         const soundSystem = AFRAME.scenes[0].systems["hubs-systems"].soundEffectsSystem;
-        soundSystem.playSoundOneShot(SOUND_CHAT_MESSAGE);
+        // TODO play sound
       });
-
 
       // keep the character's position synchronized with msxr
       this.syncTimer = setInterval(() => {
