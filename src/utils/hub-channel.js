@@ -258,7 +258,7 @@ export default class HubChannel extends EventTarget {
         console.log("play sound")
 
         const soundSystem = AFRAME.scenes[0].systems["hubs-systems"].soundEffectsSystem;
-        soundSystem.playSoundOneShot(SOUND_CHAT_MESSAGE);
+        soundSystem.playSoundOneShot(0);
         
       });
 
@@ -286,10 +286,6 @@ export default class HubChannel extends EventTarget {
         if(entityCreateMessage.grabable) {
           addComponent(APP.world, Holdable, eid);
         }  
-
-        addComponent(APP.world, InteractionSfxSystem, eid);
-
-        // [CursorRaycastablem]
       });
 
       // entity modification message
