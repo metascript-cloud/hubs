@@ -129,17 +129,6 @@ export class SoundEffectsSystem {
 
     this.scene.addEventListener("registerSound", registerSound);
   }
-
-  loadSound (url) {
-    let audioBufferPromise = loading.get(url);
-    if (!audioBufferPromise) {
-      audioBufferPromise = fetch(url)
-        .then(r => r.arrayBuffer())
-        .then(arrayBuffer => decodeAudioData(this.audioContext, arrayBuffer));
-      loading.set(url, audioBufferPromise);
-    }
-    return audioBufferPromise;
-  };
   
   enqueueSound(sound, loop) {
     if (this.isDisabled) return null;
