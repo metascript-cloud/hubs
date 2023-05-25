@@ -10,7 +10,6 @@ import { Vector3 } from "three";
 import { createNetworkedEntity } from "./create-networked-entity";
 import { addComponent, defineQuery, entityExists, removeEntity } from "bitecs";
 import { Holdable, InteractionSfxSystem } from "../bit-components";
-import { crClearInterval } from "./coroutine";
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 const MS_PER_MONTH = 1000 * 60 * 60 * 24 * 30;
@@ -221,7 +220,7 @@ export default class HubChannel extends EventTarget {
     this.channel.push("events:entered", entryEvent);
 
     if(this.syncTimer) {
-      crClearInterval(this.syncTimer);
+      clearInterval(this.syncTimer);
       this.syncTimer = null;
     }
 
@@ -240,7 +239,8 @@ export default class HubChannel extends EventTarget {
       const currentPosition = new Vector3(0, 0, 0);
       const lastPosition = new Vector3(0, 0, 0);
       const avatarPov = document.getElementById("avatar-pov-node");
-      const userinput = AFRAME.scenes[0].systems.userinput;
+
+      const scene = AFRAME.scenes[0];;
 
       // listen to patches coming from the server
       room.state.players.onAdd(function (player, sessionId) {
@@ -251,10 +251,15 @@ export default class HubChannel extends EventTarget {
         delete players[sessionId];
       });
     
-      // Listen to 'message' event from the server
+      // emit event to sound-effects-system to register a new sound
+      room.onMessage('registerSound', (data) => {
+        scene.emit("registerSound", { id: data.id, url: data.url });
+      });
+
+      // handling playing preloaded auto data
       room.onMessage('playSound', (data) => {
-        const soundSystem = AFRAME.scenes[0].systems["hubs-systems"].soundEffectsSystem;
-        // TODO play sound
+        const soundSystem = scene.systems["hubs-systems"].soundEffectsSystem;
+        soundSystem.playSoundOneShot(data.soundId);
       });
 
       // keep the character's position synchronized with msxr

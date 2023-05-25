@@ -120,8 +120,27 @@ export class SoundEffectsSystem {
       }
       this.isDisabled = shouldBeDisabled;
     });
+
+    const registerSound = (e) => {
+      load(e.detail.url).then(audioBuffer => {
+        this.sounds.set(e.detail.id, audioBuffer);
+      });
+    }
+
+    this.scene.addEventListener("registerSound", registerSound);
   }
 
+  loadSound (url) {
+    let audioBufferPromise = loading.get(url);
+    if (!audioBufferPromise) {
+      audioBufferPromise = fetch(url)
+        .then(r => r.arrayBuffer())
+        .then(arrayBuffer => decodeAudioData(this.audioContext, arrayBuffer));
+      loading.set(url, audioBufferPromise);
+    }
+    return audioBufferPromise;
+  };
+  
   enqueueSound(sound, loop) {
     if (this.isDisabled) return null;
     const audioBuffer = this.sounds.get(sound);
