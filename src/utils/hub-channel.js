@@ -8,8 +8,11 @@ import configs from "./configs";
 import * as Colyseus from "colyseus.js";
 import { Vector3 } from "three";
 import { createNetworkedEntity } from "./create-networked-entity";
-import { addComponent, defineQuery, entityExists, removeEntity } from "bitecs";
+import { addComponent, addEntity, defineQuery, entityExists, removeEntity } from "bitecs";
 import { Holdable, InteractionSfxSystem } from "../bit-components";
+import { EntityPrefab, addEntityToParent } from "../prefabs/entity";
+import { addObject3DComponent, commonInflators, renderAsEntity } from "./jsx-entity";
+import { PrefabName, prefabs } from "../prefabs/prefabs";
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 const MS_PER_MONTH = 1000 * 60 * 60 * 24 * 30;
@@ -277,14 +280,10 @@ export default class HubChannel extends EventTarget {
         if(entities[entityCreateMessage.id]) {
           throw new Error("Entity with id already exists!");
         }
-        // create entity mapping hubs eid to the id assigned in the payload
         console.log("[MSXR]: Creating entity:" + JSON.stringify(entityCreateMessage));
-        const eid = createNetworkedEntity(APP.world, "entity", entityCreateMessage);
-        entities[entityCreateMessage.id] = eid;
-        // modify to be grabable
-        if(entityCreateMessage.grabable) {
-          addComponent(APP.world, Holdable, eid);
-        }  
+        const eid = renderAsEntity(APP.world, prefabs.get("entity").template(entityCreateMessage));
+        const obj = APP.world.eid2obj.get(eid);
+        scene.object3D.add(obj);
       });
 
       // entity modification message
