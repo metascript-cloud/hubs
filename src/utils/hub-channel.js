@@ -1,24 +1,12 @@
-// important
-
 import jwtDecode from "jwt-decode";
 import { EventTarget } from "event-target-shim";
 import { Presence } from "phoenix";
 import { migrateChannelToSocket, discordBridgesForPresences, migrateToChannel } from "./phoenix-utils";
 import configs from "./configs";
-import * as Colyseus from "colyseus.js";
-import { Vector3 } from "three";
-import { createNetworkedEntity } from "./create-networked-entity";
-import { addComponent, addEntity, defineQuery, entityExists, removeEntity } from "bitecs";
-import { Holdable, InteractionSfxSystem } from "../bit-components";
-import { EntityPrefab, addEntityToParent } from "../prefabs/entity";
-import { addObject3DComponent, commonInflators, renderAsEntity } from "./jsx-entity";
-import { PrefabName, prefabs } from "../prefabs/prefabs";
 import MetaScriptXR from "./msxr";
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 const MS_PER_MONTH = 1000 * 60 * 60 * 24 * 30;
-
-// meatscript server connection
 
 function isSameMonth(da, db) {
   return da.getFullYear() == db.getFullYear() && da.getMonth() == db.getMonth();
@@ -58,7 +46,6 @@ export default class HubChannel extends EventTarget {
     this._signedIn = !!this.store.state.credentials.token;
     this._permissions = {};
     this._blockedSessionIds = new Set();
-    this.syncTimer = null;
     this.msxrClient = new MetaScriptXR();
     store.addEventListener("profilechanged", this.sendProfileUpdate.bind(this));
   }
