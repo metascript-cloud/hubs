@@ -2,23 +2,27 @@ import * as Colyseus from "colyseus.js";
 import { Vector3 } from "three";
 import { prefabs } from "../prefabs/prefabs";
 import { renderAsEntity } from "./jsx-entity";
-import { removeEntity } from "bitecs";
-import { AElement } from "aframe";
+import { addComponent, removeEntity } from "bitecs";
 import { paths } from "../systems/userinput/paths";
+import { AElement } from "aframe";
 
 export default class MetaScriptXR {
 
-    client: Colyseus.Client;
-    currentRoom: Colyseus.Room<any>;  
-    entities : any = {};
-    localPlayers : any = {};
-    syncTimer: NodeJS.Timer;
+    private client: Colyseus.Client;
+    private currentRoom: Colyseus.Room<any>;  
+    private entities : any = {};
+    private localPlayers : any = {};
+    private syncTimer: any;
 
-    lastHoverObject = -1;
-    lastClickTime : any = [];
+    private currentPosition = new Vector3(0, 0, 0);
+    private lastPosition = new Vector3(0, 0, 0);
+
+    private lastHoverObject = -1;
+    private lastClickTime : any = [];
 
     constructor() {
         this.client = new Colyseus.Client('ws://localhost:2567');
+        this.syncPlayerCoordinates();
     }
 
     join(token : string) {
@@ -26,13 +30,9 @@ export default class MetaScriptXR {
             "token": token
         }).then((room : Colyseus.Room) => {
 
+            // save reference to room so we can send messages to and from
             this.currentRoom = room;
 
-            // holds reference to the character position in object3d
-            const currentPosition = new Vector3(0, 0, 0);
-            const lastPosition = new Vector3(0, 0, 0);
-            const avatarPov = document.getElementById("avatar-pov-node");
-        
             const that = this;            
             const scene = AFRAME.scenes[0];
 
@@ -66,7 +66,7 @@ export default class MetaScriptXR {
                 that.entities[entityCreateMessage.id] = eid;
                 const rootObj = APP.world.eid2obj.get(eid)!;
                 scene.object3D.add(rootObj);
-            
+
                 // add all the child components recursively
                 if(entityCreateMessage.children) {
                     that.addChildEntity(entityCreateMessage.children, rootObj);
@@ -104,6 +104,22 @@ export default class MetaScriptXR {
         });
     }
 
+    private syncPlayerCoordinates() {
+        const avatarPov = (document.querySelector("#avatar-pov-node")! as AElement).object3D;
+        if(this.syncTimer) {
+            clearInterval(this.syncTimer);
+            this.syncTimer = null;
+        }
+        this.syncTimer = setInterval(() => {
+            avatarPov.getWorldPosition(this.currentPosition);
+            if(this.lastPosition.equals(this.currentPosition)) {
+              return;
+            }
+            this.currentRoom.send("updatePosition", { x: this.currentPosition.x, y: this.currentPosition.y, z: this.currentPosition.z });
+            this.lastPosition.copy(this.currentPosition)
+        }, 500);
+    }
+
     processHoverEvents(isHoveringSomething : boolean, remoteHoverTarget : number) {
         if(this.currentRoom) {
             if(!isHoveringSomething) {
@@ -129,7 +145,7 @@ export default class MetaScriptXR {
             if(leftButtonClicked || rightButtonClicked) {
                 if(this.currentRoom) {
                     const timeSinceLastClick = Date.now() - this.lastClickTime[this.lastHoverObject];
-                    if(timeSinceLastClick <= 100) {
+                    if(timeSinceLastClick <= 500) {
                         // prevent spam clicking events
                         return;
                     }
@@ -145,7 +161,7 @@ export default class MetaScriptXR {
         }
     }
 
-    addChildEntity(children : any, parentObj : any) {
+    private addChildEntity(children : any, parentObj : any) {
         children.forEach((child : any) => {
             const childEid = renderAsEntity(APP.world, prefabs.get("entity")!.template(child));
             const childObj = APP.world.eid2obj.get(childEid);

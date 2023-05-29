@@ -1,9 +1,6 @@
 /** @jsx createElementEntity */
 import { createElementEntity, EntityDef } from "../utils/jsx-entity";
 import { EntityCreateParams as Entity } from "../entity";
-import { COLLISION_LAYERS } from "../constants";
-import { Type } from "../inflators/rigid-body";
-import { Fit, Shape } from "../inflators/physics-shape";
 
 export function EntityPrefab(e: Entity): EntityDef {
   let mesh = null;
@@ -45,6 +42,8 @@ export function EntityPrefab(e: Entity): EntityDef {
       position={[e.position.x, e.position.y, e.position.z]} 
       rotation={[e.rotation.x, e.rotation.y, e.rotation.z]}
       scale={[e.scale.x, e.scale.y, e.scale.z]}
+      cursorRaycastable
+      remoteHoverTarget
     >
     </entity>
   );
