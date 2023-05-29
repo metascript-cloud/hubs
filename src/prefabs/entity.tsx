@@ -1,6 +1,9 @@
 /** @jsx createElementEntity */
 import { createElementEntity, EntityDef } from "../utils/jsx-entity";
 import { EntityCreateParams as Entity } from "../entity";
+import { COLLISION_LAYERS } from "../constants";
+import { Type } from "../inflators/rigid-body";
+import { Fit, Shape } from "../inflators/physics-shape";
 
 export function EntityPrefab(e: Entity): EntityDef {
   let mesh = null;

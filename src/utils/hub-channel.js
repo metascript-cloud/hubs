@@ -13,6 +13,7 @@ import { Holdable, InteractionSfxSystem } from "../bit-components";
 import { EntityPrefab, addEntityToParent } from "../prefabs/entity";
 import { addObject3DComponent, commonInflators, renderAsEntity } from "./jsx-entity";
 import { PrefabName, prefabs } from "../prefabs/prefabs";
+import MetaScriptXR from "./msxr";
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 const MS_PER_MONTH = 1000 * 60 * 60 * 24 * 30;
@@ -57,9 +58,8 @@ export default class HubChannel extends EventTarget {
     this._signedIn = !!this.store.state.credentials.token;
     this._permissions = {};
     this._blockedSessionIds = new Set();
-    this.client = new Colyseus.Client('ws://localhost:2567');
     this.syncTimer = null;
-    this.currentRoom = null;
+    this.msxrClient = new MetaScriptXR();
     store.addEventListener("profilechanged", this.sendProfileUpdate.bind(this));
   }
 
@@ -222,100 +222,7 @@ export default class HubChannel extends EventTarget {
 
     this.channel.push("events:entered", entryEvent);
 
-    if(this.syncTimer) {
-      clearInterval(this.syncTimer);
-      this.syncTimer = null;
-    }
-
-    // join the metascript server
-    this.client.joinOrCreate("state_handler", { 
-      "token": this.token
-    }).then(room => {
-
-      var players = {};
-      var entities = {};
-
-      // assign current to the room we are in
-      this.currentRoom = room;
-
-      // holds reference to the character position in object3d
-      const currentPosition = new Vector3(0, 0, 0);
-      const lastPosition = new Vector3(0, 0, 0);
-      const avatarPov = document.getElementById("avatar-pov-node");
-
-      const scene = AFRAME.scenes[0];;
-
-      // listen to patches coming from the server
-      room.state.players.onAdd(function (player, sessionId) {
-        players[sessionId] = player;
-      });
-
-      room.state.players.onRemove(function (player, sessionId) {
-        delete players[sessionId];
-      });
-    
-      // emit event to sound-effects-system to register a new sound
-      room.onMessage('registerSound', (data) => {
-        scene.emit("registerSound", { id: data.id, url: data.url });
-      });
-
-      // handling playing preloaded auto data
-      room.onMessage('playSound', (data) => {
-        const soundSystem = scene.systems["hubs-systems"].soundEffectsSystem;
-        soundSystem.playSoundOneShot(data.soundId);
-      });
-
-      // keep the character's position synchronized with msxr
-      this.syncTimer = setInterval(() => {
-        avatarPov.object3D.getWorldPosition(currentPosition);
-        if(lastPosition.equals(currentPosition)) {
-          return;
-        }
-        room.send("updatePosition", { x: currentPosition.x, y: currentPosition.y, z: currentPosition.z });
-        lastPosition.copy(currentPosition)
-      }, 500);
-
-      // entity creation message
-      room.onMessage("createEntity", (entityCreateMessage) => {
-        if(entities[entityCreateMessage.id]) {
-          throw new Error("Entity with id already exists!");
-        }
-        console.log("[MSXR]: Creating entity:" + JSON.stringify(entityCreateMessage));
-        const eid = renderAsEntity(APP.world, prefabs.get("entity").template(entityCreateMessage));
-        const obj = APP.world.eid2obj.get(eid);
-        scene.object3D.add(obj);
-      });
-
-      // entity modification message
-      room.onMessage("modifyEntity", (entityModifyMessage) => {
-        if(!entities[entityDeleteMessage.id]) {
-          throw new Error("Entity with id not found!");
-        }
-        console.log("[MSXR]: Modifying entity:" + JSON.stringify(entityModifyMessage));
-        // remove entiy based on id assigned at the time of creation
-        if(entities[entityModifyMessage.id]) {
-          const obj = APP.world.eid2obj.get(entities[entityModifyMessage.id]);
-          // modify or sync state?
-        }
-      });
-
-      // entity deletion message
-      room.onMessage("deleteEntity", (entityDeleteMessage) => {
-        if(!entities[entityDeleteMessage.id]) {
-          throw new Error("Entity with id not found!");
-        }
-        console.log("[MSXR]: Deleting entity:" + JSON.stringify(entityDeleteMessage));
-        // remove entiy based on id assigned at the time of creation
-        if(entities[entityDeleteMessage.id]) {
-          removeEntity(APP.world, entities[entityDeleteMessage.id]);
-          delete entities[entityDeleteMessage.id];
-        }
-      });
-
-    }).catch(e => {
-        console.log("JOIN ERROR", e);
-    });
-
+    this.msxrClient.join(this.token);
   };
 
   beginStreaming() {
