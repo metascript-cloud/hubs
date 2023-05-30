@@ -6,6 +6,7 @@ import { addComponent, removeEntity } from "bitecs";
 import { paths } from "../systems/userinput/paths";
 import { AElement } from "aframe";
 import { loadModel } from "../components/gltf-model-plus";
+import { preload } from "./preload";
 
 const loadedModels = new Map();
 
@@ -28,7 +29,7 @@ export default class MetaScriptXR {
     private lastClickTime : any = [];
 
     constructor() {
-        this.client = new Colyseus.Client('ws://localhost:2567');
+        this.client = new Colyseus.Client('wss://localhost:2567');
         this.syncPlayerCoordinates();
     }
 
@@ -59,9 +60,9 @@ export default class MetaScriptXR {
         
             // emit event to sound-effects-system to register a new sound
             room.onMessage('registerModel', (data) => {
-                loadModel(data.url).then((model) => {
+                preload(loadModel(data.url, null, true, null).then(() => {
                     loadedModels.set(data.id, data.url);
-                });
+                }));
             });
 
             // handling playing preloaded auto data
