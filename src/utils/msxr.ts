@@ -5,6 +5,13 @@ import { renderAsEntity } from "./jsx-entity";
 import { addComponent, removeEntity } from "bitecs";
 import { paths } from "../systems/userinput/paths";
 import { AElement } from "aframe";
+import { loadModel } from "../components/gltf-model-plus";
+
+const loadedModels = new Map();
+
+export function getLoadedModel(id : string) {
+    return loadedModels.get(id);
+}
 
 export default class MetaScriptXR {
 
@@ -50,6 +57,13 @@ export default class MetaScriptXR {
                 scene.emit("registerSound", { id: data.id, url: data.url });
             });
         
+            // emit event to sound-effects-system to register a new sound
+            room.onMessage('registerModel', (data) => {
+                loadModel(data.url).then((model) => {
+                    loadedModels.set(data.id, data.url);
+                });
+            });
+
             // handling playing preloaded auto data
             room.onMessage('playSound', (data) => {
                 const soundSystem = scene.systems["hubs-systems"].soundEffectsSystem;
@@ -111,6 +125,10 @@ export default class MetaScriptXR {
             this.syncTimer = null;
         }
         this.syncTimer = setInterval(() => {
+            if(this.currentRoom == null) {
+                // need to be connected to server to sync position
+                return;
+            }
             avatarPov.getWorldPosition(this.currentPosition);
             if(this.lastPosition.equals(this.currentPosition)) {
               return;

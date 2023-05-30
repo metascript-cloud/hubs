@@ -33,6 +33,7 @@ export type EntityCreateParams = {
   name: string;
   type: string;
   text?: Text;
+  modelId: string,
   color?: string;
   parent?: EntityID;
   opacity?: number;
