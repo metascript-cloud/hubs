@@ -20,10 +20,19 @@ type Shape = {
   segments: number;
 } 
 
+type Text = {
+  value: string;
+  color: string;
+  textAlign: string;
+  anchorX : string;
+  anchorY: string;
+}
+
 export type EntityCreateParams = {
   id?: string;
   name: string;
   type: string;
+  text?: Text;
   color?: string;
   parent?: EntityID;
   opacity?: number;
