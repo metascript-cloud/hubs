@@ -14,11 +14,17 @@ export function getLoadedModel(id : string) {
     return loadedModels.get(id);
 }
 
+export type EntityRef = {
+    localEid : number;
+    remoteEid: number;
+    name: string;
+}
+
 export default class MetaScriptXR {
 
     private client: Colyseus.Client;
     private currentRoom: Colyseus.Room<any>;  
-    private entities : any = {};
+    private localEntities = new Map<number, EntityRef>();
     private localPlayers : any = {};
     private syncTimer: any;
     private entitySpawnTick : any;
@@ -32,6 +38,15 @@ export default class MetaScriptXR {
     constructor() {
         this.client = new Colyseus.Client('wss://localhost:2567');
         this.syncPlayerCoordinates();
+    }
+
+    private getEntityRef(localEid: number): EntityRef | undefined {
+        for (const [remoteEid, entityRef] of this.localEntities) {
+            if (entityRef.localEid === localEid) {
+                return { localEid: localEid, remoteEid: remoteEid, name: entityRef.name };
+            }
+        }
+        return undefined;
     }
 
     join(token : string) {
@@ -85,28 +100,26 @@ export default class MetaScriptXR {
         
             // entity modification message
             room.onMessage("modifyEntity", (entityModifyMessage) => {
-                if(!that.entities[entityModifyMessage.id]) {
+                if(!that.localEntities.get(entityModifyMessage.id)) {
                     throw new Error("Entity with id not found!");
                 }
                 console.log("[MSXR]: Modifying entity:" + JSON.stringify(entityModifyMessage));
-                // remove entiy based on id assigned at the time of creation
-                if(that.entities[entityModifyMessage.id]) {
-                    const obj = APP.world.eid2obj.get(that.entities[entityModifyMessage.id]);
-                    // modify or sync state?
-                }
+                // modify entity based on id assigned at the time of creation
+                const entityRef = that.localEntities.get(entityModifyMessage.id);
+                const obj = APP.world.eid2obj.get(entityRef?.localEid as number);
+                // TODO handle modification to entities
             });
     
             // entity deletion message
             room.onMessage("deleteEntity", (entityDeleteMessage) => {
-                if(!that.entities[entityDeleteMessage.id]) {
+                if(!that.localEntities.get(entityDeleteMessage.id)) {
                     throw new Error("Entity with id not found!");
                 }
                 console.log("[MSXR]: Deleting entity:" + JSON.stringify(entityDeleteMessage));
-                // remove entiy based on id assigned at the time of creation
-                if(that.entities[entityDeleteMessage.id]) {
-                    removeEntity(APP.world, that.entities[entityDeleteMessage.id]);
-                    delete that.entities[entityDeleteMessage.id];
-                }
+                // remove entity based on id assigned at the time of creation
+                const entityRef = that.localEntities.get(entityDeleteMessage.id);
+                removeEntity(APP.world, entityRef?.localEid as number);
+                that.localEntities.delete(entityDeleteMessage.id);
             });
 
             // Ensures assets are present before attempting to spawn entities
@@ -114,16 +127,21 @@ export default class MetaScriptXR {
                 waitForPreloads().then(() => {
                     if(queue.length > 0) {
                         const entityCreateMessage = queue.pop();
-                        if (that.entities[entityCreateMessage.id]) {
+                        if(that.localEntities.get(entityCreateMessage.id)) {
                             throw new Error("Entity with id already exists!");
                         }
                         console.log("[MSXR]: Creating entity: " + entityCreateMessage.name);
                         const entity = prefabs.get("entity")!.template(entityCreateMessage);
-                        const eid = renderAsEntity(APP.world, entity);
-                        that.entities[entityCreateMessage.id] = eid;
-                        const rootObj = APP.world.eid2obj.get(eid)!;
+                        const localEid = renderAsEntity(APP.world, entity);
+                        // keep track of local and remote id
+                        this.localEntities.set(entityCreateMessage.id, {
+                            localEid: localEid,
+                            remoteEid: entityCreateMessage.id,
+                            name: entityCreateMessage.name
+                        });
+                        const rootObj = APP.world.eid2obj.get(localEid)!;
                         scene.object3D.add(rootObj);
-        
+
                         // add all the child components recursively
                         if(entityCreateMessage.children) {
                             that.addChildEntity(entityCreateMessage.children, rootObj);
@@ -186,11 +204,16 @@ export default class MetaScriptXR {
                         // prevent spam clicking events
                         return;
                     }
-                    this.currentRoom.send("onEntityClicked", {
-                        id: this.lastHoverObject,
-                        isLeft: leftButtonClicked,
-                        isRight: rightButtonClicked
-                    });
+                    const entityRef = this.getEntityRef(this.lastHoverObject);
+                    if(!entityRef) {
+                        console.warn("[MSXR]: Could not find entity ref for " + this.lastHoverObject)
+                    } else {
+                        this.currentRoom.send("onEntityClicked", {
+                            id: entityRef,
+                            isLeft: leftButtonClicked,
+                            isRight: rightButtonClicked
+                        });
+                    }
                     this.lastClickTime[this.lastHoverObject] = Date.now(); // this timestamp
                 }
                 this.lastHoverObject = -1;
@@ -203,7 +226,14 @@ export default class MetaScriptXR {
             const childEid = renderAsEntity(APP.world, prefabs.get("entity")!.template(child));
             const childObj = APP.world.eid2obj.get(childEid);
             parentObj.add(childObj);
-        
+            const entityRef = {
+                localEid: childEid,
+                remoteEid: child.id,
+                name: child.name
+            };
+            // keep track of local and remote id
+            this.localEntities.set(child.id, entityRef);
+            
             // recursively add child's children
             if (child.children && child.children.length > 0) {
                 this.addChildEntity(child.children, childObj);
