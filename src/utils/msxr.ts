@@ -6,7 +6,7 @@ import { addComponent, removeEntity } from "bitecs";
 import { paths } from "../systems/userinput/paths";
 import { AElement } from "aframe";
 import { loadModel } from "../components/gltf-model-plus";
-import { preload } from "./preload";
+import { preload, waitForPreloads } from "./preload";
 
 const loadedModels = new Map();
 
@@ -21,6 +21,7 @@ export default class MetaScriptXR {
     private entities : any = {};
     private localPlayers : any = {};
     private syncTimer: any;
+    private entitySpawnTick : any;
 
     private currentPosition = new Vector3(0, 0, 0);
     private lastPosition = new Vector3(0, 0, 0);
@@ -43,6 +44,12 @@ export default class MetaScriptXR {
 
             const that = this;            
             const scene = AFRAME.scenes[0];
+            const queue: any[] = [];
+
+            if(this.entitySpawnTick) {
+                clearInterval(this.entitySpawnTick);
+                this.entitySpawnTick = null;
+            }
 
             // listen to patches coming from the server
             room.state.players.onAdd(function (player: any, sessionId: string) {
@@ -73,19 +80,7 @@ export default class MetaScriptXR {
         
             // entity creation message
             room.onMessage("createEntity", (entityCreateMessage) => {
-                if (that.entities[entityCreateMessage.id]) {
-                    throw new Error("Entity with id already exists!");
-                }
-                console.log("[MSXR]: Creating entity: " + JSON.stringify(entityCreateMessage));
-                const eid = renderAsEntity(APP.world, prefabs.get("entity")!.template(entityCreateMessage));
-                that.entities[entityCreateMessage.id] = eid;
-                const rootObj = APP.world.eid2obj.get(eid)!;
-                scene.object3D.add(rootObj);
-
-                // add all the child components recursively
-                if(entityCreateMessage.children) {
-                    that.addChildEntity(entityCreateMessage.children, rootObj);
-                }
+                queue.push(entityCreateMessage);
             });
         
             // entity modification message
@@ -113,6 +108,29 @@ export default class MetaScriptXR {
                     delete that.entities[entityDeleteMessage.id];
                 }
             });
+
+            // Ensures assets are present before attempting to spawn entities
+            this.entitySpawnTick = setInterval(() => {
+                waitForPreloads().then(() => {
+                    if(queue.length > 0) {
+                        const entityCreateMessage = queue.pop();
+                        if (that.entities[entityCreateMessage.id]) {
+                            throw new Error("Entity with id already exists!");
+                        }
+                        console.log("[MSXR]: Creating entity: " + entityCreateMessage.name);
+                        const entity = prefabs.get("entity")!.template(entityCreateMessage);
+                        const eid = renderAsEntity(APP.world, entity);
+                        that.entities[entityCreateMessage.id] = eid;
+                        const rootObj = APP.world.eid2obj.get(eid)!;
+                        scene.object3D.add(rootObj);
+        
+                        // add all the child components recursively
+                        if(entityCreateMessage.children) {
+                            that.addChildEntity(entityCreateMessage.children, rootObj);
+                        }
+                    }
+                });
+            }, 100);
     
         }).catch(e => {
             console.log("JOIN ERROR", e);
