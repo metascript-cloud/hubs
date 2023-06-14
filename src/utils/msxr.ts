@@ -100,10 +100,10 @@ export default class MetaScriptXR {
         
             // entity modification message
             room.onMessage("modifyEntity", (entityModifyMessage) => {
+                console.log("[MSXR]: Modifying entity:" + JSON.stringify(entityModifyMessage));
                 if(!that.localEntities.get(entityModifyMessage.id)) {
                     throw new Error("Entity with id not found!");
                 }
-                console.log("[MSXR]: Modifying entity:" + JSON.stringify(entityModifyMessage));
                 // modify entity based on id assigned at the time of creation
                 const entityRef = that.localEntities.get(entityModifyMessage.id);
                 const obj = APP.world.eid2obj.get(entityRef?.localEid as number);
@@ -115,11 +115,45 @@ export default class MetaScriptXR {
                 if(!that.localEntities.get(entityDeleteMessage.id)) {
                     throw new Error("Entity with id not found!");
                 }
-                console.log("[MSXR]: Deleting entity:" + JSON.stringify(entityDeleteMessage));
+                console.log("[MSXR]: Deleting entity", entityDeleteMessage);
                 // remove entity based on id assigned at the time of creation
                 const entityRef = that.localEntities.get(entityDeleteMessage.id);
                 removeEntity(APP.world, entityRef?.localEid as number);
+                this.currentRoom.send("onEntityDestroyed", this.localEntities.get(entityDeleteMessage.id));
                 that.localEntities.delete(entityDeleteMessage.id);
+            });
+
+            const lookAts = new Map();
+
+            // entity deletion message
+            room.onMessage("lookAt", (entityLookAtMessage) => {
+                if(!that.localEntities.get(entityLookAtMessage.id)) {
+                    throw new Error("Entity with id not found!");
+                }
+                if(lookAts.get(entityLookAtMessage.id)) {
+                    throw new Error("Entity is already looking towards avatar");
+                }
+                console.log("[MSXR]: Look at entity", entityLookAtMessage);
+                const entityRef = that.localEntities.get(entityLookAtMessage.id);
+                const obj = APP.world.eid2obj.get(entityRef?.localEid as number);
+                const avatarPosition = new Vector3();
+                const avatarPov = (document.querySelector("#avatar-pov-node")! as AElement).object3D;
+                if(!lookAts.get(entityLookAtMessage.id)) {
+                    // update object position at a rate of 60 FPS
+                    const timer = setInterval(() => {
+                        if(!this.localEntities.has(entityLookAtMessage.id)) {
+                            const timer = lookAts.get(entityLookAtMessage.id);
+                            if(timer) {
+                                lookAts.delete(entityLookAtMessage.id);
+                                clearInterval(timer);
+                                return;
+                            }
+                        }
+                        avatarPov.getWorldPosition(avatarPosition);
+                        obj?.lookAt(avatarPosition);
+                    }, 16);
+                    lookAts.set(entityLookAtMessage.id, timer);
+                }
             });
 
             // Ensures assets are present before attempting to spawn entities
@@ -141,11 +175,11 @@ export default class MetaScriptXR {
                         });
                         const rootObj = APP.world.eid2obj.get(localEid)!;
                         scene.object3D.add(rootObj);
-
                         // add all the child components recursively
                         if(entityCreateMessage.children) {
                             that.addChildEntity(entityCreateMessage.children, rootObj);
                         }
+                        this.currentRoom.send("onEntityCreated", this.localEntities.get(entityCreateMessage.id));
                     }
                 });
             }, 100);
@@ -172,7 +206,7 @@ export default class MetaScriptXR {
             }
             this.currentRoom.send("updatePosition", { x: this.currentPosition.x, y: this.currentPosition.y, z: this.currentPosition.z });
             this.lastPosition.copy(this.currentPosition)
-        }, 500);
+        }, 100);
     }
 
     processHoverEvents(isHoveringSomething : boolean, remoteHoverTarget : number) {
