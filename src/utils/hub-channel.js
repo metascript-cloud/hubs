@@ -209,7 +209,12 @@ export default class HubChannel extends EventTarget {
 
     this.channel.push("events:entered", entryEvent);
 
-    this.msxrClient.join(this.token);
+    this.msxrClient.join({
+      token: this.token,
+      displayName: this.store.state.profile.displayName,
+      device: navigator.userAgent
+    });
+    
   };
 
   beginStreaming() {

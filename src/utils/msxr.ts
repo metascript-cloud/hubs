@@ -8,16 +8,22 @@ import { AElement } from "aframe";
 import { loadModel } from "../components/gltf-model-plus";
 import { preload, waitForPreloads } from "./preload";
 
-const loadedModels = new Map();
-
-export function getLoadedModel(id : string) {
-    return loadedModels.get(id);
+export type JoinEvent = {
+    displayName: string;
+    device: string;
+    token: string;
 }
 
 export type EntityRef = {
     localEid : number;
     remoteEid: number;
     name: string;
+}
+
+const loadedModels = new Map();
+
+export function getLoadedModel(id : string) {
+    return loadedModels.get(id);
 }
 
 export default class MetaScriptXR {
@@ -49,9 +55,11 @@ export default class MetaScriptXR {
         return undefined;
     }
 
-    join(token : string) {
+    join(event : JoinEvent) {
         this.client.joinOrCreate("state_handler", { 
-            "token": token
+            "token": event.token,
+            "displayName": event.displayName,
+            "hubId": APP.hub?.hub_id
         }).then((room : Colyseus.Room) => {
 
             // save reference to room so we can send messages to and from
@@ -59,6 +67,7 @@ export default class MetaScriptXR {
 
             const that = this;            
             const scene = AFRAME.scenes[0];
+            const lookAts = new Map();
             const queue: any[] = [];
 
             if(this.entitySpawnTick) {
@@ -123,8 +132,6 @@ export default class MetaScriptXR {
                 that.localEntities.delete(entityDeleteMessage.id);
             });
 
-            const lookAts = new Map();
-
             // entity deletion message
             room.onMessage("lookAt", (entityLookAtMessage) => {
                 if(!that.localEntities.get(entityLookAtMessage.id)) {
@@ -164,7 +171,7 @@ export default class MetaScriptXR {
                         if(that.localEntities.get(entityCreateMessage.id)) {
                             throw new Error("Entity with id already exists!");
                         }
-                        console.log("[MSXR]: Creating entity: " + entityCreateMessage.name);
+                        console.log("[MSXR]: Creating entity", entityCreateMessage);
                         const entity = prefabs.get("entity")!.template(entityCreateMessage);
                         const localEid = renderAsEntity(APP.world, entity);
                         // keep track of local and remote id
