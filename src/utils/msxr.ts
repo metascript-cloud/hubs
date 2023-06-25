@@ -132,7 +132,7 @@ export default class MetaScriptXR {
                 that.localEntities.delete(entityDeleteMessage.id);
             });
 
-            // entity deletion message
+            // entity look at message
             room.onMessage("lookAt", (entityLookAtMessage) => {
                 if(!that.localEntities.get(entityLookAtMessage.id)) {
                     throw new Error("Entity with id not found!");
