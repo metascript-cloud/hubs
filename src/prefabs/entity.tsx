@@ -3,13 +3,18 @@ import { createElementEntity, EntityDef } from "../utils/jsx-entity";
 import { EntityCreateParams as Entity } from "../entity";
 import { Layers } from "../camera-layers";
 import { cloneModelFromCache } from "../components/gltf-model-plus";
-import { getLoadedModel } from "../utils/msxr";
+import { getLoadedModel, getLoadedTexture } from "../utils/msxr";
+import { ProjectionMode } from "../utils/projection-mode";
+import { TextureCache } from "../utils/texture-cache";
+import { AlphaMode } from "../utils/create-image-mesh";
+import { loadTextureFromCache } from "../utils/load-texture";
 
 export function EntityPrefab(e: Entity): EntityDef {
   
   let mesh = null; 
   let entity = null;
   let modelUrl = null;
+  let textureUrl = null;
 
   const material = new THREE.MeshBasicMaterial({
     color: e.color ? e.color: "#ffffff",
@@ -43,6 +48,12 @@ export function EntityPrefab(e: Entity): EntityDef {
     case "text":
       // handled below
       break;
+    case "image":
+      textureUrl = getLoadedTexture(e.textureId);
+      if(!textureUrl) {
+        throw new Error("Model not ready: " + e.modelId)
+      }
+      break;
     case "model":
       modelUrl = getLoadedModel(e.modelId);
       if(!modelUrl) {
@@ -74,6 +85,23 @@ export function EntityPrefab(e: Entity): EntityDef {
         name={`${e.name}`}
       />      
       break
+
+    case "image":
+      entity = <entity
+        image={{
+          texture: loadTextureFromCache(textureUrl, 1).texture,
+          ratio: 1400 / 1200,
+          projection: ProjectionMode.FLAT,
+          alphaMode: AlphaMode.Mask,
+          cacheKey: TextureCache.key(e.textureId, 1)
+        }}
+        position={[e.position.x, e.position.y, e.position.z]} 
+        rotation={[e.rotation.x, e.rotation.y, e.rotation.z]}
+        scale={[e.scale.x, e.scale.y, e.scale.z]}
+        name={`${e.name}`}
+      />      
+      break;
+
     default:
       // load primitives
       entity = <entity

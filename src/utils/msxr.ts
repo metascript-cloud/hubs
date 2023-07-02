@@ -7,6 +7,7 @@ import { paths } from "../systems/userinput/paths";
 import { AElement } from "aframe";
 import { loadModel } from "../components/gltf-model-plus";
 import { preload, waitForPreloads } from "./preload";
+import { loadTexture } from "./load-texture";
 
 export type JoinEvent = {
     displayName: string;
@@ -21,9 +22,14 @@ export type EntityRef = {
 }
 
 const loadedModels = new Map();
+const loadedTextures = new Map();
 
 export function getLoadedModel(id : string) {
     return loadedModels.get(id);
+}
+
+export function getLoadedTexture(id : string) {
+    return loadedTextures.get(id);
 }
 
 export default class MetaScriptXR {
@@ -82,15 +88,28 @@ export default class MetaScriptXR {
             
             room.state.players.onRemove(function (player : any, sessionId: string) {
                 delete that.localPlayers[sessionId];
-            });
+            }); 
         
             // emit event to sound-effects-system to register a new sound
             room.onMessage('registerSound', (data) => {
+                console.log("Registering sound", data);
                 scene.emit("registerSound", { id: data.id, url: data.url });
             });
-        
+
+            // emit event to load a texture
+            room.onMessage('registerTexture', (data) => {
+                console.log("Registering texture", data);
+                preload(loadTexture(data.src, data.version, data.contentType).then((src : any) => {
+
+                    console.log("src", data.src)
+
+                    loadedTextures.set(data.id, data.src);
+                }));
+            });
+                    
             // emit event to sound-effects-system to register a new sound
             room.onMessage('registerModel', (data) => {
+                console.log("Registering model", data);
                 preload(loadModel(data.url, null, true, null).then(() => {
                     loadedModels.set(data.id, data.url);
                 }));
