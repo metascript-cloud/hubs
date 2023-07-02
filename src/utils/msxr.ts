@@ -1,5 +1,5 @@
 import * as Colyseus from "colyseus.js";
-import { Vector3 } from "three";
+import { Object3D, Vector3 } from "three";
 import { prefabs } from "../prefabs/prefabs";
 import { renderAsEntity } from "./jsx-entity";
 import { addComponent, removeEntity } from "bitecs";
@@ -101,6 +101,11 @@ export default class MetaScriptXR {
                 const soundSystem = scene.systems["hubs-systems"].soundEffectsSystem;
                 soundSystem.playSoundOneShot(data.soundId);
             });
+
+            // send message
+            room.onMessage("sendMessage", (data) => {
+                APP.hubChannel?.sendMessage(data.message);
+            });
         
             // entity creation message
             room.onMessage("createEntity", (entityCreateMessage) => {
@@ -115,8 +120,34 @@ export default class MetaScriptXR {
                 }
                 // modify entity based on id assigned at the time of creation
                 const entityRef = that.localEntities.get(entityModifyMessage.id);
-                const obj = APP.world.eid2obj.get(entityRef?.localEid as number);
-                // TODO handle modification to entities
+                const obj = APP.world.eid2obj.get(entityRef?.localEid as number) as Object3D;
+
+                // visibility
+                if (entityModifyMessage.visible) {
+                    obj.visible = entityModifyMessage.visible;
+                }
+
+                // position
+                if (entityModifyMessage.position) {
+                    obj.position.set(entityModifyMessage.position.x, entityModifyMessage.position.y, entityModifyMessage.position.z);
+                    obj.updateMatrix();
+                }
+
+                // scale
+                if (entityModifyMessage.scale) {
+                    obj.scale.set(entityModifyMessage.scale, entityModifyMessage.scale, entityModifyMessage.scale);
+                    obj.updateMatrix();
+                }
+
+                // color
+                if (entityModifyMessage.color) {
+                    const newColor = entityModifyMessage.color;
+                    if (obj instanceof THREE.Mesh) {
+                      const material = obj.material as THREE.MeshBasicMaterial | THREE.MeshStandardMaterial;
+                      material.color.set(newColor);
+                    }
+                }
+
             });
     
             // entity deletion message
@@ -220,12 +251,26 @@ export default class MetaScriptXR {
         if(this.currentRoom) {
             if(!isHoveringSomething) {
                 if(this.lastHoverObject > 0) {
-                    this.currentRoom.send("onEntityHoverExit", { id: this.lastHoverObject })
+                    const entityRef = this.getEntityRef(this.lastHoverObject);
+                    if(!entityRef) {
+                        console.warn("[MSXR]: Could not find entity ref for " + this.lastHoverObject)
+                    } else {
+                        this.currentRoom.send("onEntityHoverExit", {
+                            id: entityRef
+                        });
+                    }
                     this.lastHoverObject = -1;
                 }
             } else {
                 if(remoteHoverTarget != this.lastHoverObject) {
-                    this.currentRoom.send("onEntityHoverEntered", { id: remoteHoverTarget })
+                    const entityRef = this.getEntityRef(remoteHoverTarget);
+                    if(!entityRef) {
+                        console.warn("[MSXR]: Could not find entity ref for " + remoteHoverTarget)
+                    } else {
+                        this.currentRoom.send("onEntityHoverEntered", {
+                            id: entityRef
+                        });
+                    }
                     this.lastHoverObject = remoteHoverTarget;
                 }
             }
