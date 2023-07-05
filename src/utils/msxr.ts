@@ -1,5 +1,5 @@
 import * as Colyseus from "colyseus.js";
-import { Object3D, Vector3 } from "three";
+import { Matrix4, Object3D, Quaternion, Vector3 } from "three";
 import { prefabs } from "../prefabs/prefabs";
 import { renderAsEntity } from "./jsx-entity";
 import { addComponent, removeEntity } from "bitecs";
@@ -23,6 +23,7 @@ export type EntityRef = {
 
 const loadedModels = new Map();
 const loadedTextures = new Map();
+const loadedVideos = new Map();
 
 export function getLoadedModel(id : string) {
     return loadedModels.get(id);
@@ -31,6 +32,11 @@ export function getLoadedModel(id : string) {
 export function getLoadedTexture(id : string) {
     return loadedTextures.get(id);
 }
+
+export function getLoadedVideo(id : string) {
+    return loadedVideos.get(id);
+}
+
 
 export default class MetaScriptXR {
 
@@ -96,13 +102,17 @@ export default class MetaScriptXR {
                 scene.emit("registerSound", { id: data.id, url: data.url });
             });
 
+            // emit event to sound-effects-system to register a new sound
+            room.onMessage('registerVideo', (data) => {
+                console.log("Registering video", data);
+                loadedVideos.set(data.videoId, data.src);
+            });
+            
+
             // emit event to load a texture
             room.onMessage('registerTexture', (data) => {
                 console.log("Registering texture", data);
                 preload(loadTexture(data.src, data.version, data.contentType).then((src : any) => {
-
-                    console.log("src", data.src)
-
                     loadedTextures.set(data.id, data.src);
                 }));
             });
@@ -180,6 +190,17 @@ export default class MetaScriptXR {
                 removeEntity(APP.world, entityRef?.localEid as number);
                 this.currentRoom.send("onEntityDestroyed", this.localEntities.get(entityDeleteMessage.id));
                 that.localEntities.delete(entityDeleteMessage.id);
+            });
+
+            // teleport message
+            room.onMessage("teleport", (teleportMessage) => {
+                const characterController = AFRAME.scenes[0].systems["hubs-systems"].characterController;
+                console.log("[MSXR]: Teleporting entity", teleportMessage);
+                characterController.enqueueWaypointTravelTo(
+                    new Matrix4().compose(teleportMessage.position, new Quaternion().setFromEuler(new THREE.Euler(teleportMessage.rotation.x, teleportMessage.rotation.y, teleportMessage.rotation.z, 'XYZ')), new Vector3(1, 1, 1)),
+                    teleportMessage.instant,
+                    { snapToNavMesh: teleportMessage.snapToNavMesh, willMaintainInitialOrientation: teleportMessage.willMaintainInitialOrientation }
+                );
             });
 
             // entity look at message

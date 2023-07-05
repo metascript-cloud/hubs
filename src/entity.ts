@@ -35,6 +35,7 @@ export type EntityCreateParams = {
   text?: Text;
   textureId: string;
   modelId: string,
+  videoId: string,
   color?: string;
   parent?: EntityID;
   opacity?: number;
