@@ -8,8 +8,6 @@ import { ProjectionMode } from "../utils/projection-mode";
 import { TextureCache } from "../utils/texture-cache";
 import { AlphaMode } from "../utils/create-image-mesh";
 import { loadTextureFromCache } from "../utils/load-texture";
-import { HubsVideoTexture } from "../textures/HubsVideoTexture";
-import { loadVideoTexture } from "../utils/load-video-texture";
 
 export function EntityPrefab(data: Entity): EntityDef {
   

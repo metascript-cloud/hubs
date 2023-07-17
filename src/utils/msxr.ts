@@ -8,6 +8,7 @@ import { AElement } from "aframe";
 import { loadModel } from "../components/gltf-model-plus";
 import { preload, waitForPreloads } from "./preload";
 import { loadTexture } from "./load-texture";
+import { Text } from "troika-three-text";
 
 export type JoinEvent = {
     displayName: string;
@@ -54,7 +55,7 @@ export default class MetaScriptXR {
     private lastClickTime : any = [];
 
     constructor() {
-        this.client = new Colyseus.Client('wss://localhost:2567');
+        this.client = new Colyseus.Client('wss://engine.metascriptxr.com');
         this.syncPlayerCoordinates();
     }
 
@@ -149,23 +150,33 @@ export default class MetaScriptXR {
                 }
                 // modify entity based on id assigned at the time of creation
                 const entityRef = that.localEntities.get(entityModifyMessage.id);
-                const obj = APP.world.eid2obj.get(entityRef?.localEid as number) as Object3D;
-
+                let obj = null;
                 // visibility
                 if (entityModifyMessage.visible) {
+                    obj = APP.world.eid2obj.get(entityRef?.localEid as number) as Object3D;
                     obj.visible = entityModifyMessage.visible;
                 }
 
                 // position
                 if (entityModifyMessage.position) {
+                    obj = APP.world.eid2obj.get(entityRef?.localEid as number) as Object3D;
                     obj.position.set(entityModifyMessage.position.x, entityModifyMessage.position.y, entityModifyMessage.position.z);
                     obj.updateMatrix();
                 }
 
                 // scale
                 if (entityModifyMessage.scale) {
+                    obj = APP.world.eid2obj.get(entityRef?.localEid as number) as Object3D;
                     obj.scale.set(entityModifyMessage.scale, entityModifyMessage.scale, entityModifyMessage.scale);
                     obj.updateMatrix();
+                }
+
+                // update text
+                if (entityModifyMessage.text) {
+                    obj = APP.world.eid2obj.get(entityRef?.localEid as number) as Text;
+                    const text = obj.children[0] as Text;
+                    text.text = entityModifyMessage.text;
+                    text.matrixNeedsUpdate = true;
                 }
 
                 // color
