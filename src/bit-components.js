@@ -169,9 +169,16 @@ export const SceneLoader = defineComponent({ src: Types.ui32 });
 SceneLoader.src[$isStringType] = true;
 
 export const MediaImage = defineComponent({
-  cacheKey: Types.ui32
+  cacheKey: Types.ui32,
+  projection: Types.ui8,
+  alphaMode: Types.ui8,
+  alphaCutoff: Types.f32
 });
 MediaImage.cacheKey[$isStringType] = true;
+/**
+ * @type {Map<EntityId, ImageLoaderParams}>}
+ */
+export const MediaImageLoaderData = new Map();
 
 export const NetworkedPDF = defineComponent({
   pageNumber: Types.ui8
@@ -182,9 +189,14 @@ export const MediaPDF = defineComponent({
 MediaPDF.map = new Map();
 
 export const MediaVideo = defineComponent({
-  autoPlay: Types.ui8,
-  ratio: Types.f32
+  ratio: Types.f32,
+  flags: Types.ui8,
+  projection: Types.ui8
 });
+/**
+ * @type {Map<EntityId, VideoLoaderParams}>}
+ */
+export const MediaVideoLoaderData = new Map();
 /**
  * @type {Map<EntityId, HTMLVideoElement}>}
  */
@@ -257,13 +269,16 @@ export const ObjectMenu = defineComponent({
 // TODO: Store this data elsewhere, since only one or two will ever exist.
 export const LinkHoverMenu = defineComponent({
   targetObjectRef: Types.eid,
-  linkButtonRef: Types.eid
+  linkButtonRef: Types.eid,
+  clearTargetTimer: Types.f64
 });
 export const LinkHoverMenuItem = defineComponent();
 export const Link = defineComponent({
-  url: Types.ui32
+  url: Types.ui32,
+  type: Types.ui8
 });
 Link.url[$isStringType] = true;
+export const LinkInitializing = defineComponent();
 // TODO: Store this data elsewhere, since only one or two will ever exist.
 export const PDFMenu = defineComponent({
   prevButtonRef: Types.eid,
