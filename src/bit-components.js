@@ -163,6 +163,12 @@ export const LoadedByMediaLoader = defineComponent();
 export const MediaContentBounds = defineComponent({
   bounds: [Types.f32, 3]
 });
+export const MediaInfo = defineComponent({
+  accessibleUrl: Types.ui32,
+  contentType: Types.ui32
+});
+MediaInfo.accessibleUrl[$isStringType] = true;
+MediaInfo.contentType[$isStringType] = true;
 
 // MediaImageLoaderData and MediaVideoLoaderData are
 // for parameters that are set at glTF inflators
@@ -383,3 +389,5 @@ export const LinearScale = defineComponent({
 export const Quack = defineComponent();
 export const TrimeshTag = defineComponent();
 export const HeightFieldTag = defineComponent();
+export const LocalAvatar = defineComponent();
+export const RemoteAvatar = defineComponent();
