@@ -152,6 +152,7 @@ class UIRoot extends Component {
     subscriptions: PropTypes.object,
     initialIsFavorited: PropTypes.bool,
     showSignInDialog: PropTypes.bool,
+    showBitECSBasedClientRefreshPrompt: PropTypes.bool,
     signInMessage: PropTypes.object,
     onContinueAfterSignIn: PropTypes.func,
     showSafariMicDialog: PropTypes.bool,
@@ -522,7 +523,7 @@ class UIRoot extends Component {
   handleForceEntry = () => {
     console.log("Forced entry type: " + this.props.forcedVREntryType);
 
-    if (!this.props.forcedVREntryType) return;
+    if (!this.props.forcedVREntryType || !this.props.hubChannel.canEnterRoom(this.props.hub)) return;
 
     if (this.props.forcedVREntryType.startsWith("daydream")) {
       this.enterDaydream();
@@ -1696,6 +1697,14 @@ class UIRoot extends Component {
               />
             )}
           </div>
+          {this.props.showBitECSBasedClientRefreshPrompt && (
+            <div className={styles.bitecsBasedClientRefreshPrompt}>
+              <FormattedMessage
+                id="ui-root.bitecs-based-client-refresh-prompt"
+                defaultMessage="This page will be reloaded in five seconds because the room owner toggled the bitECS based client activation flag."
+              />
+            </div>
+          )}
         </ReactAudioContext.Provider>
       </MoreMenuContextProvider>
     );

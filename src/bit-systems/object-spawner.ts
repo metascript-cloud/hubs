@@ -6,6 +6,8 @@ import { coroutine } from "../utils/coroutine";
 import { createNetworkedMedia } from "../utils/create-networked-entity";
 import { EntityID } from "../utils/networking-types";
 import { setMatrixWorld } from "../utils/three-utils";
+import { animateScale } from "./media-loading";
+import { sleep } from "../utils/async-utils";
 
 export enum OBJECT_SPAWNER_FLAGS {
   /** Apply gravity to spawned objects */
@@ -13,12 +15,15 @@ export enum OBJECT_SPAWNER_FLAGS {
 }
 
 function* spawnObjectJob(world: HubsWorld, spawner: EntityID) {
+  if (!APP.hubChannel!.can("spawn_and_move_media")) return;
+
   const spawned = createNetworkedMedia(world, {
     src: APP.getString(ObjectSpawner.src[spawner])!,
-    recenter: true,
-    resize: true,
-    animateLoad: true,
-    isObjectMenuTarget: true
+    recenter: false,
+    resize: false,
+    animateLoad: false,
+    isObjectMenuTarget: true,
+    moveParentNotObject: true
   });
 
   if (ObjectSpawner.flags[spawner] & OBJECT_SPAWNER_FLAGS.APPLY_GRAVITY) {
@@ -32,6 +37,9 @@ function* spawnObjectJob(world: HubsWorld, spawner: EntityID) {
   spawnerObj.updateMatrices();
   const spawnedObj = world.eid2obj.get(spawned)!;
   setMatrixWorld(spawnedObj, spawnerObj.matrixWorld);
+
+  yield sleep(100);
+  yield* animateScale(world, spawner);
 }
 
 // TODO type for coroutine

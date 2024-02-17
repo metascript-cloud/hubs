@@ -1,38 +1,48 @@
 /** @jsx createElementEntity */
 import { createElementEntity } from "../utils/jsx-entity";
-import { ProjectionMode, getProjectionFromProjectionName } from "./projection-mode";
+import { ProjectionMode } from "./projection-mode";
 import { renderAsEntity } from "../utils/jsx-entity";
 import { loadVideoTexture } from "../utils/load-video-texture";
 import { HubsWorld } from "../app";
 import { HubsVideoTexture } from "../textures/HubsVideoTexture";
 import { EntityID } from "./networking-types";
-import { MediaVideoLoaderData } from "../bit-components";
-import { VideoLoaderParams } from "../inflators/video-loader";
+import { Networked, NetworkedVideo, ObjectMenuTarget } from "../bit-components";
+import { ObjectMenuTargetFlags } from "../inflators/object-menu-target";
+import { addComponent } from "bitecs";
+type Params = {
+  loop?: boolean;
+  autoPlay?: boolean;
+  controls?: boolean;
+  projection?: ProjectionMode;
+};
 
-export function* loadVideo(world: HubsWorld, eid: EntityID, url: string, contentType: string) {
-  let loop = true;
-  let autoPlay = true;
-  let controls = true;
-  let projection = ProjectionMode.FLAT;
-  if (MediaVideoLoaderData.has(eid)) {
-    const params = MediaVideoLoaderData.get(eid)! as VideoLoaderParams;
-    loop = params.loop;
-    autoPlay = params.autoPlay;
-    controls = params.controls;
-    projection = getProjectionFromProjectionName(params.projection);
-    MediaVideoLoaderData.delete(eid);
-  }
+const DEFAULTS: Required<Params> = {
+  loop: true,
+  autoPlay: true,
+  controls: true,
+  projection: ProjectionMode.FLAT
+};
 
+export function* loadVideo(
+  world: HubsWorld,
+  eid: EntityID,
+  url: string,
+  contentType: string,
+  params: Params,
+  isNetworked: boolean
+) {
+  const { loop, autoPlay, controls, projection } = Object.assign({}, DEFAULTS, params);
   const { texture, ratio, video }: { texture: HubsVideoTexture; ratio: number; video: HTMLVideoElement } =
     yield loadVideoTexture(url, contentType, loop, autoPlay);
 
-  return renderAsEntity(
+  ObjectMenuTarget.flags[eid] |= ObjectMenuTargetFlags.Flat;
+
+  const videoEid = renderAsEntity(
     world,
     <entity
       name="Video"
-      networked
-      networkedVideo
       grabbable={{ cursor: true, hand: false }}
+      objectMenuTarget={{ isFlat: true }}
       video={{
         texture,
         ratio,
@@ -42,4 +52,11 @@ export function* loadVideo(world: HubsWorld, eid: EntityID, url: string, content
       }}
     ></entity>
   );
+
+  if (isNetworked) {
+    addComponent(world, Networked, videoEid);
+    addComponent(world, NetworkedVideo, videoEid);
+  }
+
+  return videoEid;
 }

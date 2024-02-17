@@ -1,4 +1,4 @@
-import { Not, defineQuery, entityExists } from "bitecs";
+import { Not, addComponent, defineQuery, entityExists, removeComponent } from "bitecs";
 import type { HubsWorld } from "../app";
 import {
   Link,
@@ -7,7 +7,9 @@ import {
   TextTag,
   Interacted,
   LinkHoverMenuItem,
-  LinkInitializing
+  LinkInitializing,
+  ObjectMenuTransform,
+  CursorRaycastable
 } from "../bit-components";
 import { findAncestorWithComponent, findChildWithComponent } from "../utils/bit-utils";
 import { hubIdFromUrl } from "../utils/media-url-utils";
@@ -15,13 +17,19 @@ import { Text as TroikaText } from "troika-three-text";
 import { handleExitTo2DInterstitial } from "../utils/vr-interstitial";
 import { changeHub } from "../change-hub";
 import { EntityID } from "../utils/networking-types";
-import { setMatrixWorld } from "../utils/three-utils";
 import { LinkType } from "../inflators/link";
+import { ObjectMenuTransformFlags } from "../inflators/object-menu-transform";
 
 const menuQuery = defineQuery([LinkHoverMenu]);
 const hoveredLinksQuery = defineQuery([HoveredRemoteRight, Link, Not(LinkInitializing)]);
 const hoveredMenuItemQuery = defineQuery([HoveredRemoteRight, LinkHoverMenuItem]);
 const clickedMenuItemQuery = defineQuery([Interacted, LinkHoverMenuItem]);
+
+function setCursorRaycastable(world: HubsWorld, menu: EntityID, enable: boolean) {
+  let change = enable ? addComponent : removeComponent;
+  change(world, CursorRaycastable, menu);
+  change(world, CursorRaycastable, LinkHoverMenu.linkButtonRef[menu]);
+}
 
 function updateLinkMenuTarget(world: HubsWorld, menu: EntityID, sceneIsFrozen: boolean) {
   if (LinkHoverMenu.targetObjectRef[menu] && !entityExists(world, LinkHoverMenu.targetObjectRef[menu])) {
@@ -56,6 +64,7 @@ async function handleLinkClick(world: HubsWorld, button: EntityID) {
   const menu = findAncestorWithComponent(world, LinkHoverMenu, button)!;
   const linkEid = LinkHoverMenu.targetObjectRef[menu];
   const src = APP.getString(Link.url[linkEid])!;
+  if (!src) return;
   const url = new URL(src);
   const linkType = Link.type[linkEid];
   switch (linkType) {
@@ -86,14 +95,6 @@ async function handleLinkClick(world: HubsWorld, button: EntityID) {
       location.href = src;
       break;
   }
-}
-
-function moveToTarget(world: HubsWorld, menu: EntityID) {
-  const linkEid = LinkHoverMenu.targetObjectRef[menu];
-  const targetObject = world.eid2obj.get(linkEid)!;
-  targetObject.updateMatrices();
-  const menuObject = world.eid2obj.get(menu)!;
-  setMatrixWorld(menuObject, targetObject.matrixWorld);
 }
 
 function updateButtonText(world: HubsWorld, menu: EntityID, button: EntityID) {
@@ -127,6 +128,15 @@ function flushToObject3Ds(world: HubsWorld, menu: EntityID, frozen: boolean, for
   const target = LinkHoverMenu.targetObjectRef[menu];
   const visible = !!target && !frozen;
 
+  // TODO We are handling menus visibility in a similar way for all the object menus, we
+  // should probably refactor this to a common object-menu-visibility-system
+  if (visible) {
+    ObjectMenuTransform.targetObjectRef[menu] = target;
+    ObjectMenuTransform.flags[menu] |= ObjectMenuTransformFlags.Enabled;
+  } else {
+    ObjectMenuTransform.flags[menu] &= ~ObjectMenuTransformFlags.Enabled;
+  }
+
   const obj = world.eid2obj.get(menu)!;
   obj.visible = visible;
 
@@ -142,6 +152,8 @@ function flushToObject3Ds(world: HubsWorld, menu: EntityID, frozen: boolean, for
   } else {
     buttonObj.visible = false;
   }
+
+  setCursorRaycastable(world, menu, visible);
 }
 
 export function linkHoverMenuSystem(world: HubsWorld, sceneIsFrozen: boolean) {
@@ -152,7 +164,6 @@ export function linkHoverMenuSystem(world: HubsWorld, sceneIsFrozen: boolean) {
     updateLinkMenuTarget(world, menu, sceneIsFrozen);
     const currTarget = LinkHoverMenu.targetObjectRef[menu];
     if (currTarget) {
-      moveToTarget(world, menu);
       clickedMenuItemQuery(world).forEach(eid => handleLinkClick(world, eid));
     }
     flushToObject3Ds(world, menu, sceneIsFrozen, prevTarget !== currTarget);
