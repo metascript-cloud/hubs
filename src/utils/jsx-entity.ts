@@ -3,7 +3,6 @@ import { preloadFont } from "troika-three-text";
 import {
   $isStringType,
   CameraTool,
-  ObjectMenu,
   LinkHoverMenu,
   LinkHoverMenuItem,
   PDFMenu,
@@ -39,12 +38,15 @@ import {
   VideoTextureSource,
   Quack,
   MixerAnimatableInitialize,
-  Inspectable
+  Inspectable,
+  ObjectMenu,
+  HoverableVisuals,
+  MirrorMenu
 } from "../bit-components";
 import { inflateMediaLoader } from "../inflators/media-loader";
 import { inflateMediaFrame } from "../inflators/media-frame";
 import { GrabbableParams, inflateGrabbable } from "../inflators/grabbable";
-import { inflateImage } from "../inflators/image";
+import { ImageParams, inflateImage } from "../inflators/image";
 import { inflateVideo, VideoParams } from "../inflators/video";
 import { inflateModel, ModelParams } from "../inflators/model";
 import { inflatePDFLoader, PDFLoaderParams } from "../inflators/pdf-loader";
@@ -98,6 +100,11 @@ import { inflateTrimesh } from "../inflators/trimesh";
 import { HeightFieldParams, inflateHeightField } from "../inflators/heightfield";
 import { inflateAudioSettings } from "../inflators/audio-settings";
 import { HubsVideoTexture } from "../textures/HubsVideoTexture";
+import { inflateMediaLink, MediaLinkParams } from "../inflators/media-link";
+import { inflateObjectMenuTarget, ObjectMenuTargetParams } from "../inflators/object-menu-target";
+import { inflateObjectMenuTransform, ObjectMenuTransformParams } from "../inflators/object-menu-transform";
+import { inflatePlane, PlaneParams } from "../inflators/plane";
+import { FollowInFovParams, inflateFollowInFov } from "../inflators/follow-in-fov";
 
 preload(
   new Promise(resolve => {
@@ -267,14 +274,11 @@ export interface JSXComponentData extends ComponentData {
     size: [width: number, height: number];
     insets: [top: number, bottom: number, left: number, right: number];
     texture: Texture;
+    toneMapped?: boolean;
+    transparent?: boolean;
+    alphaTest?: number;
   };
-  image?: {
-    texture: Texture;
-    ratio: number;
-    projection: ProjectionMode;
-    alphaMode: AlphaMode;
-    cacheKey: string;
-  };
+  image?: ImageParams;
   video?: VideoParams;
   link?: LinkParams;
   networkedVideo?: true;
@@ -285,6 +289,9 @@ export interface JSXComponentData extends ComponentData {
     headRef: Ref;
     playIndicatorRef: Ref;
     pauseIndicatorRef: Ref;
+    snapRef: Ref;
+    volUpRef: Ref;
+    volDownRef: Ref;
   };
   videoMenuItem?: true;
   cursorRaycastable?: true;
@@ -305,12 +312,14 @@ export interface JSXComponentData extends ComponentData {
   networked?: any;
   textButton?: any;
   hoverButton?: any;
+  hoverableVisuals?: any;
   rigidbody?: OptionalParams<RigidBodyParams>;
   physicsShape?: OptionalParams<PhysicsShapeParams>;
   floatyObject?: any;
   networkedFloatyObject?: any;
   networkedTransform?: any;
   objectMenu?: {
+    backgroundRef: Ref;
     pinButtonRef: Ref;
     unpinButtonRef: Ref;
     cameraFocusButtonRef: Ref;
@@ -326,6 +335,11 @@ export interface JSXComponentData extends ComponentData {
     mirrorButtonRef: Ref;
     scaleButtonRef: Ref;
   };
+  mirrorMenu?: {
+    closeRef: Ref;
+    mirrorTargetRef: Ref;
+  };
+  followInFov?: FollowInFovParams;
   linkHoverMenu?: {
     linkButtonRef: Ref;
   };
@@ -334,6 +348,7 @@ export interface JSXComponentData extends ComponentData {
     prevButtonRef: Ref;
     nextButtonRef: Ref;
     pageLabelRef: Ref;
+    snapRef: Ref;
   };
   cameraTool?: {
     snapMenuRef: Ref;
@@ -360,6 +375,9 @@ export interface JSXComponentData extends ComponentData {
   pdf?: PDFParams;
   loopAnimation?: LoopAnimationParams;
   inspectable?: boolean;
+  objectMenuTransform?: OptionalParams<ObjectMenuTransformParams>;
+  objectMenuTarget?: OptionalParams<ObjectMenuTargetParams>;
+  plane?: PlaneParams;
 }
 
 export interface GLTFComponentData extends ComponentData {
@@ -380,6 +398,7 @@ export interface GLTFComponentData extends ComponentData {
   zoneAudioSource: AudioSourceParams;
   audioTarget: AudioTargetParams;
   audioSettings: SceneAudioSettings;
+  mediaLink: MediaLinkParams;
 
   // deprecated
   spawnPoint?: true;
@@ -438,6 +457,7 @@ const jsxInflators: Required<{ [K in keyof JSXComponentData]: InflatorFn }> = {
   holdableButton: createDefaultInflator(HoldableButton),
   textButton: createDefaultInflator(TextButton),
   hoverButton: createDefaultInflator(HoverButton),
+  hoverableVisuals: createDefaultInflator(HoverableVisuals),
   holdable: createDefaultInflator(Holdable),
   deletable: createDefaultInflator(Deletable),
   rigidbody: inflateRigidBody,
@@ -449,6 +469,8 @@ const jsxInflators: Required<{ [K in keyof JSXComponentData]: InflatorFn }> = {
   networkedTransform: createDefaultInflator(NetworkedTransform),
   networked: createDefaultInflator(Networked),
   objectMenu: createDefaultInflator(ObjectMenu),
+  mirrorMenu: createDefaultInflator(MirrorMenu),
+  followInFov: inflateFollowInFov,
   linkHoverMenu: createDefaultInflator(LinkHoverMenu),
   linkHoverMenuItem: createDefaultInflator(LinkHoverMenuItem),
   pdfMenu: createDefaultInflator(PDFMenu),
@@ -473,6 +495,9 @@ const jsxInflators: Required<{ [K in keyof JSXComponentData]: InflatorFn }> = {
   image: inflateImage,
   video: inflateVideo,
   link: inflateLink,
+  objectMenuTransform: inflateObjectMenuTransform,
+  objectMenuTarget: inflateObjectMenuTarget,
+  plane: inflatePlane
 };
 
 export const gltfInflators: Required<{ [K in keyof GLTFComponentData]: InflatorFn }> = {
@@ -507,7 +532,8 @@ export const gltfInflators: Required<{ [K in keyof GLTFComponentData]: InflatorF
   boxCollider: inflateBoxCollider,
   trimesh: inflateTrimesh,
   heightfield: inflateHeightField,
-  audioSettings: inflateAudioSettings
+  audioSettings: inflateAudioSettings,
+  mediaLink: inflateMediaLink
 };
 
 function jsxInflatorExists(name: string): name is keyof JSXComponentData {

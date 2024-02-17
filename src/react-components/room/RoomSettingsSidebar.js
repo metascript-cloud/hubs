@@ -196,6 +196,26 @@ export function RoomSettingsSidebar({
             />
           </div>
         </InputField>
+        <InputField
+          label={<FormattedMessage id="room-settings-sidebar.bitecs-client" defaultMessage="bitECS based Client" />}
+          fullWidth
+        >
+          <ToggleInput
+            label={
+              <FormattedMessage
+                id="room-settings-sidebar.bitecs-client-activation"
+                defaultMessage="Enable bitECS based Client"
+              />
+            }
+            description={
+              <FormattedMessage
+                id="room-settings-sidebar.bitecs-client-activation-description"
+                defaultMessage="Enable or disable the new Client, which is implemented with bitECS for simplicity and extensibility."
+              />
+            }
+            {...register("user_data.hubs_use_bitecs_based_client")}
+          />
+        </InputField>
         <ApplyButton type="submit" />
       </Column>
     </Sidebar>
