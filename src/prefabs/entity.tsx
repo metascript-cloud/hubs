@@ -91,7 +91,7 @@ export function EntityPrefab(data: Entity): EntityDef {
           texture: loadTextureFromCache(textureUrl, 1).texture,
           ratio: 1400 / 1200,
           projection: ProjectionMode.FLAT,
-          alphaMode: AlphaMode.Mask,
+          alphaMode: AlphaMode.MASK,
           cacheKey: TextureCache.key(data.textureId, 1)
         }}
         position={[data.position.x, data.position.y, data.position.z]} 

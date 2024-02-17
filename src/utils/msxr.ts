@@ -54,6 +54,13 @@ export default class MetaScriptXR {
     private lastHoverObject = -1;
     private lastClickTime : any = [];
 
+    // Define some constants at the top
+    private readonly MAX_RETRIES = 60; // maximum number of retry attempts
+    private readonly RETRY_DELAY = 5000; // delay between retries in milliseconds
+
+    // Add a retry counter to your class properties
+    retries: number = 0;
+
     constructor() {
         this.client = new Colyseus.Client('wss://engine.metascriptxr.com');
         this.syncPlayerCoordinates();
@@ -68,7 +75,11 @@ export default class MetaScriptXR {
         return undefined;
     }
 
-    join(event : JoinEvent) {
+    join(event: JoinEvent) {
+        this.attemptJoin(event);
+    }
+
+    attemptJoin(event : JoinEvent) {
 
         this.client.joinOrCreate("state_handler", { 
             "token": event.token,
@@ -101,235 +112,14 @@ export default class MetaScriptXR {
             // handle leave event
             room.onLeave((code) => {
                 console.log("Leave code: " + code)
-                this.localEntities.forEach((entity) => {
-                    console.log(entity)
-                })
+                if(code === 1006) {
+                    this.localEntities.forEach((entity : any) => {
+                        removeEntity(APP.world, entity.localEid as number);
+                    })
+                    this.localEntities.clear();
+                    this.attemptJoin(event);
+                }
             });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            
 
             // emit event to sound-effects-system to register a new sound
             room.onMessage('registerSound', (data) => {
@@ -479,7 +269,10 @@ export default class MetaScriptXR {
                 }
             });
 
-            // Ensures assets are present before attempting to spawn entities
+            if(this.entitySpawnTick) {
+                clearInterval(this.entitySpawnTick);
+            }
+            // Ensures assets are present before attempting to spawn entities   
             this.entitySpawnTick = setInterval(() => {
                 waitForPreloads().then(() => {
                     if(queue.length > 0) {
@@ -508,7 +301,15 @@ export default class MetaScriptXR {
             }, 100);
     
         }).catch(e => {
-            console.log("JOIN ERROR", e);
+            console.log("Error connecting to server", e);
+            if (this.retries < this.MAX_RETRIES) {
+                this.retries++;
+                console.log(`Retrying (${this.retries}/${this.MAX_RETRIES}) in ${this.RETRY_DELAY/1000} seconds...`);
+                setTimeout(() => this.attemptJoin(event), this.RETRY_DELAY);
+            } else {
+                console.log("Max retries reached. Failed to join.");
+                // Handle max retries reached, e.g., show a message to the user.
+            }
         });
     }
 
